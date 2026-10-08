@@ -1,0 +1,97 @@
+name: build-and-deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# Never run two deploys at once; a newer push waits for the current one to finish
+concurrency:
+  group: build-and-deploy
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Free ARM runner (public repo): Native AOT compiles natively for arm64, matching the Oracle A1 server
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      api-image: ${{ steps.names.outputs.api }}
+      ui-image: ${{ steps.names.outputs.ui }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image names
+        id: names
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "api=ghcr.io/$owner/space-affinity-api" >> "$GITHUB_OUTPUT"
+          echo "ui=ghcr.io/$owner/space-affinity-ui" >> "$GITHUB_OUTPUT"
+
+      - name: Build API image
+        run: docker build -f SpaceAffinityApi/Dockerfile -t "${{ steps.names.outputs.api }}:${{ github.sha }}" .
+
+      - name: Smoke test API image on ARM
+        run: bash .github/scripts/smoke-test.sh "${{ steps.names.outputs.api }}:${{ github.sha }}"
+
+      - name: Build UI image
+        run: docker build -t "${{ steps.names.outputs.ui }}:${{ github.sha }}" space-affinity-ui
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push images
+        run: |
+          for image in "${{ steps.names.outputs.api }}" "${{ steps.names.outputs.ui }}"; do
+            docker tag "$image:${{ github.sha }}" "$image:latest"
+            docker push "$image:${{ github.sha }}"
+            docker push "$image:latest"
+          done
+
+  deploy:
+    needs: build
+    # Switched on once the server is prepared: Settings → Secrets and variables → Actions → Variables → DEPLOY_ENABLED = true
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    env:
+      SSH_TARGET: ubuntu@${{ secrets.DEPLOY_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Point manifests at this commit's images
+        run: |
+          sed "s|image: space-affinity-api:.*|image: ${{ needs.build.outputs.api-image }}:${{ github.sha }}|" k8s/api.yaml > api.yaml
+          sed "s|image: space-affinity-ui:.*|image: ${{ needs.build.outputs.ui-image }}:${{ github.sha }}|" k8s/ui.yaml > ui.yaml
+          grep -h "image:" api.yaml ui.yaml
+
+      - name: Apply manifests
+        run: |
+          { cat k8s/postgres.yaml; echo "---"; cat api.yaml; echo "---"; cat ui.yaml; } \
+            | ssh "$SSH_TARGET" "kubectl apply -f -"
+
+      - name: Wait for rollout
+        run: |
+          ssh "$SSH_TARGET" "kubectl rollout status deployment/web-api --timeout=180s \
+            && kubectl rollout status deployment/web-ui --timeout=120s"
+
+      # New pods that never become ready don't take traffic, but roll back so the cluster matches the last good version
+      - name: Roll back on failure
+        if: failure()
+        run: |
+          ssh "$SSH_TARGET" "kubectl rollout undo deployment/web-api; kubectl rollout undo deployment/web-ui" || true

@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web-api
+  template:
+    metadata:
+      labels:
+        app: web-api
+    spec:
+      containers:
+        - name: web-api
+          image: space-affinity-api:1.0
+          ports:
+            - containerPort: 8080
+          env:
+            # Trust X-Forwarded-* headers from Traefik (correct scheme and client IP)
+            - name: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+              value: "true"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: password
+            # $(DB_PASSWORD) is expanded by Kubernetes from the variable above
+            - name: ConnectionStrings__Default
+              value: "Host=postgres;Database=appdb;Username=app;Password=$(DB_PASSWORD)"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-api
+spec:
+  selector:
+    app: web-api
+  ports:
+    - port: 80
+      targetPort: 8080

@@ -1,0 +1,51 @@
+.note-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 24px 0;
+
+  input {
+    flex: 1 1 200px;
+    padding: 10px 14px;
+    font: inherit;
+    font-size: 16px;
+    color: var(--text-h);
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+
+    &::placeholder {
+      color: var(--text);
+    }
+    &:hover {
+      border-color: var(--accent-border);
+    }
+    &:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-bg);
+    }
+  }
+
+  button {
+    padding: 10px 20px;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--accent);
+    background: var(--accent-bg);
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.3s;
+
+    &:hover {
+      border-color: var(--accent-border);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+  }
+}
