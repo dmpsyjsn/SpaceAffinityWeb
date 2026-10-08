@@ -82,7 +82,8 @@ jobs:
 
       - name: Apply manifests
         run: |
-          { cat k8s/postgres.yaml; echo "---"; cat api.yaml; echo "---"; cat ui.yaml; } \
+          # Leading \n: files without a trailing newline would otherwise glue "---" onto their last line
+          { cat k8s/postgres.yaml; printf '\n---\n'; cat api.yaml; printf '\n---\n'; cat ui.yaml; } \
             | ssh "$SSH_TARGET" "kubectl apply -f -"
 
       - name: Wait for rollout
