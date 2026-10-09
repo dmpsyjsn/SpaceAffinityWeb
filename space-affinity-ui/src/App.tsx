@@ -28,7 +28,7 @@ function App() {
 
   return (
     <main>
-      <h1>Space Notes</h1>
+      <h1>Space Affinity</h1>
       {spaceNotes.map((spaceNote) => (
         <section key={spaceNote.id}>
           {editingId === spaceNote.id ? (
