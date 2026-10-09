@@ -12,25 +12,9 @@ function App() {
       .then(setSpaceNotes)
   }, []);
 
-  // React 19 form action: receives the form data and resets the form afterwards
-  async function addSpaceNote(formData: FormData) {
-    const res = await fetch('/api/spacenotes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description: formData.get('description'), pictureUrl: formData.get('pictureurl')  }),
-    })
-    const created: SpaceNote = await res.json()
-    setSpaceNotes((prev) => [...prev, created])
-  }
-
   return (
     <main>
-      <h1>Space Affinity</h1>
-      <form className="note-form" action={addSpaceNote}>
-        <input name="description" placeholder="New note" required />
-        <input name="pictureurl" type="url" placeholder="Picture URL (http...)" required />
-        <button type="submit">Add</button>
-      </form>
+      <h1>Space Notes</h1>
       {spaceNotes.map((spaceNote) => (
         <section key={spaceNote.id}>
           <p>{spaceNote.description}</p>
