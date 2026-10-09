@@ -59,10 +59,17 @@ api.MapPost("/spacenotes", async (AddSpaceNote request, IPlainSqlContext<SpaceNo
         return Results.BadRequest();
     }
 
-    var note = new SpaceNote { Description = request.Description, PictureUrl = request.PictureUrl};
+    var isEdit = request.Id != 0;
+    var note = new SpaceNote { Id = request.Id, Description = request.Description, PictureUrl = request.PictureUrl};
     var id = await datasource.UpsertItem(note);
+    if (id == -1)
+    {
+        // Edits only update existing rows, so an unknown id matched nothing
+        return Results.NotFound();
+    }
+
     note.Id = id;
-    return Results.Created($"/api/spacenotes/{id}", note);
+    return isEdit ? Results.Ok(note) : Results.Created($"/api/spacenotes/{id}", note);
 });
 
 app.Run();

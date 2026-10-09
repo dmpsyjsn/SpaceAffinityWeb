@@ -8,7 +8,7 @@ namespace SpaceAffinityApi.Context
         private readonly SqlEntityMap<T> _map;
         private readonly Dictionary<SqlStatement, string> _sql;
 
-        private enum SqlStatement { Select, Insert, Upsert }
+        private enum SqlStatement { Select, Insert, Update }
 
         public PostgresPlainSqlContext(NpgsqlDataSource dataSource, SqlEntityMap<T> map)
         {
@@ -19,15 +19,15 @@ namespace SpaceAffinityApi.Context
             var table = Quote(map.Table);
             var cols = string.Join(", ", map.Columns.Select(Quote));
             var values = string.Join(", ", map.Columns.Select((_, i) => $"@p{i}"));
-            var updates = string.Join(", ", map.Columns.Select(c => $"{Quote(c)} = EXCLUDED.{Quote(c)}"));
+            var updates = string.Join(", ", map.Columns.Select((c, i) => $"{Quote(c)} = @p{i}"));
 
             _sql = new Dictionary<SqlStatement, string>
             {
                 [SqlStatement.Select] = $"SELECT {key}, {cols} FROM {table} ORDER BY {key} LIMIT @take OFFSET @skip",
                 // Key is database generated (identity), so insert without it.
                 [SqlStatement.Insert] = $"INSERT INTO {table} ({cols}) VALUES ({values}) RETURNING {key}",
-                [SqlStatement.Upsert] = $"INSERT INTO {table} ({key}, {cols}) VALUES (@p_key, {values}) " +
-                                        $"ON CONFLICT ({key}) DO UPDATE SET {updates} RETURNING {key}"
+                // Update only: inserting a caller-supplied key would desync the identity sequence.
+                [SqlStatement.Update] = $"UPDATE {table} SET {updates} WHERE {key} = @p_key RETURNING {key}"
             };
         }
 
@@ -66,9 +66,10 @@ namespace SpaceAffinityApi.Context
             return [.. results];
         }
 
+        /// <summary>Inserts a keyless item, or updates an existing one. Returns the key, or -1 if no row had that key.</summary>
         public async Task<int> UpsertItem(T item)
         {
-            await using var cmd = _dataSource.CreateCommand(_sql[_map.HasKey(item) ? SqlStatement.Upsert : SqlStatement.Insert]);
+            await using var cmd = _dataSource.CreateCommand(_sql[_map.HasKey(item) ? SqlStatement.Update : SqlStatement.Insert]);
             _map.Bind(cmd.Parameters, item);
             var id = (int) (await cmd.ExecuteScalarAsync() ?? -1);
 

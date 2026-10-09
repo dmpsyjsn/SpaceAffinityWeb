@@ -41,7 +41,7 @@ k8s/
 |--------|------|-------|
 | `GET` | `/healthz` | Used by the Kubernetes readiness and liveness probes |
 | `GET` | `/api/spacenotes?page=1&itemsPerPage=100` | Paging values are clamped (`itemsPerPage` is 1 to 100) |
-| `POST` | `/api/spacenotes` | Body `{ "description": "...", "pictureUrl": "..." }`. Returns 201, or 400 if a field is missing |
+| `POST` | `/api/spacenotes` | Body `{ "description": "...", "pictureUrl": "..." }` adds a note (201). Include `"id"` to edit that note instead (200, or 404 if it doesn't exist). Returns 400 if a field is missing |
 
 The API creates its table on startup. It takes a Postgres advisory lock first, so several pods starting at the same time don't race on `CREATE TABLE`.
 

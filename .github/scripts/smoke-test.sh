@@ -56,6 +56,20 @@ echo "ok   POST /api/spacenotes (returns id)"
 curl -fs "$BASE/api/spacenotes" | grep -q "smoke test" || fail "GET should return the note just created"
 echo "ok   GET  /api/spacenotes (reads back)"
 
+edited=$(curl -fs -X POST -H "Content-Type: application/json" \
+  -d '{"id":1,"description":"smoke edited","pictureUrl":"https://example.com/edited.jpg"}' \
+  "$BASE/api/spacenotes") || fail "POST with an id (edit) returned an error status"
+echo "$edited" | grep -q "smoke edited" || fail "edit should return the updated note, got: $edited"
+notes=$(curl -fs "$BASE/api/spacenotes")
+echo "$notes" | grep -q "smoke edited" || fail "GET should return the edited note"
+echo "$notes" | tr -d '[:space:]' | grep -q '"id":2' && fail "edit should update in place, not add a note"
+echo "ok   POST /api/spacenotes {id:1} (edits)"
+
+status=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" \
+  -d '{"id":999,"description":"x","pictureUrl":"https://example.com/x.jpg"}' "$BASE/api/spacenotes")
+[ "$status" = "404" ] || fail "editing an unknown id should return 404, got $status"
+echo "ok   POST /api/spacenotes {id:999} (404)"
+
 curl -fs "$BASE/api/spacenotes?page=0&itemsPerPage=-5" >/dev/null || fail "out-of-range paging should be clamped, not error"
 echo "ok   GET  /api/spacenotes?page=0 (clamped)"
 
