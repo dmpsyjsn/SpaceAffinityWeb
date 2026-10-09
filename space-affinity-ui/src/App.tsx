@@ -25,7 +25,7 @@ function App() {
 
   return (
     <main>
-      <h1>Space Notes</h1>
+      <h1>Space Affinity</h1>
       <form className="note-form" action={addSpaceNote}>
         <input name="description" placeholder="New note" required />
         <input name="pictureurl" type="url" placeholder="Picture URL (http...)" required />
