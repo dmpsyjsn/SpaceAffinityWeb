@@ -29,6 +29,11 @@
   }
 }
 
+.form-error {
+  flex-basis: 100%;
+  color: #e5484d;
+}
+
 button {
   padding: 10px 20px;
   font: inherit;

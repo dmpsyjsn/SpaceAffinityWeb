@@ -29,6 +29,22 @@ spec:
             # $(DB_PASSWORD) is expanded by Kubernetes from the variable above
             - name: ConnectionStrings__Default
               value: "Host=postgres;Database=appdb;Username=app;Password=$(DB_PASSWORD)"
+            - name: Authentication__JwtKey
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-authorization-key
+                  key: jwtkey
+            - name: Authentication__JwtIssuer
+              value: "SpaceAffinityWeb"
+            - name: Authentication__JwtAudience
+              value: "SpaceAffinityWebUsers"
+            - name: Authentication__Username
+              value: "space-affinity-admin"
+            - name: Authentication__Password
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-authorization-key
+                  key: jwtpassword
           readinessProbe:
             httpGet:
               path: /healthz

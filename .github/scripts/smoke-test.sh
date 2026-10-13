@@ -35,6 +35,11 @@ done
 
 docker run -d --name "$NAME-api" --network "$NAME" -p "$PORT:8080" \
   -e ConnectionStrings__Default="Host=$NAME-pg;Database=appdb;Username=app;Password=smoke" \
+  -e Authentication__JwtKey="ABCDEFGHIJKLMNOPQRSTUVWXYZ!ABCDEFGHIJKLMNOPQRSTUVWXYZ!ABCDEFGHIJKLMNOPQRSTUVWXYZ!" \
+  -e Authentication__JwtIssuer="smokeissuer" \
+  -e Authentication__JwtAudience="smokeaudience" \
+  -e Authentication__Username="smokeusername" \
+  -e Authentication__Password="smokepassword" \
   "$IMAGE" >/dev/null
 
 for _ in $(seq 1 30); do
@@ -44,10 +49,17 @@ done
 curl -fs "$BASE/healthz" >/dev/null || fail "API never became healthy"
 echo "ok   GET  /healthz"
 
+login=$(curl -fs -X POST -H "Content-Type: application/json" \
+  -d '{"username":"smokeusername","password":"smokepassword"}' \
+  "$BASE/api/login") || fail "POST returned an error status"
+echo "$login" | tr -d '[:space:]' | grep -q 'token' || fail "POST should return the generated token, got: $login"
+echo "ok   POST /api/login (returns token)"
+
 [ "$(curl -fs "$BASE/api/spacenotes" | tr -d '[:space:]')" = "[]" ] || fail "GET on an empty table should return []"
 echo "ok   GET  /api/spacenotes (empty)"
 
 created=$(curl -fs -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $(echo "$login" | sed -E 's/.*"token":"([^"]+)".*/\1/')" \
   -d '{"description":"smoke test","pictureUrl":"https://example.com/smoke.jpg"}' \
   "$BASE/api/spacenotes") || fail "POST returned an error status"
 echo "$created" | tr -d '[:space:]' | grep -q '"id":1' || fail "POST should return the generated id 1, got: $created"
@@ -57,6 +69,7 @@ curl -fs "$BASE/api/spacenotes" | grep -q "smoke test" || fail "GET should retur
 echo "ok   GET  /api/spacenotes (reads back)"
 
 edited=$(curl -fs -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $(echo "$login" | sed -E 's/.*"token":"([^"]+)".*/\1/')" \
   -d '{"id":1,"description":"smoke edited","pictureUrl":"https://example.com/edited.jpg"}' \
   "$BASE/api/spacenotes") || fail "POST with an id (edit) returned an error status"
 echo "$edited" | grep -q "smoke edited" || fail "edit should return the updated note, got: $edited"
@@ -66,6 +79,7 @@ echo "$notes" | tr -d '[:space:]' | grep -q '"id":2' && fail "edit should update
 echo "ok   POST /api/spacenotes {id:1} (edits)"
 
 status=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $(echo "$login" | sed -E 's/.*"token":"([^"]+)".*/\1/')" \
   -d '{"id":999,"description":"x","pictureUrl":"https://example.com/x.jpg"}' "$BASE/api/spacenotes")
 [ "$status" = "404" ] || fail "editing an unknown id should return 404, got $status"
 echo "ok   POST /api/spacenotes {id:999} (404)"
@@ -73,7 +87,9 @@ echo "ok   POST /api/spacenotes {id:999} (404)"
 curl -fs "$BASE/api/spacenotes?page=0&itemsPerPage=-5" >/dev/null || fail "out-of-range paging should be clamped, not error"
 echo "ok   GET  /api/spacenotes?page=0 (clamped)"
 
-status=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -d '{}' "$BASE/api/spacenotes")
+status=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $(echo "$login" | sed -E 's/.*"token":"([^"]+)".*/\1/')" \
+  -d '{}' "$BASE/api/spacenotes")
 [ "$status" = "400" ] || fail "POST without fields should return 400, got $status"
 echo "ok   POST /api/spacenotes {} (400)"
 
