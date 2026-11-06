@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
@@ -22,6 +23,24 @@ var slimDataSource = dataSourceBuilder.Build();
 
 // Register the built NpgsqlDataSource as a Singleton
 builder.Services.AddSingleton(slimDataSource);
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("Get_Limiter", context =>
+    {
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter($"Get_Limiter_{ip}", _ => new() { PermitLimit = 100, Window = TimeSpan.FromMinutes(1) });
+    });
+
+    options.AddPolicy("Login_Limiter", context =>
+    {
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter($"Login_Limiter_{ip}",
+            _ => new() {PermitLimit = 5, Window = TimeSpan.FromMinutes(1)});
+    });
+});
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -64,6 +83,7 @@ var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 // Create the table on startup if it doesn't exist (guarded by an advisory lock, so multiple pods are safe).
 using (var scope = app.Services.CreateScope())
@@ -86,7 +106,7 @@ api.MapGet("/spacenotes", async (IPlainSqlContext<SpaceNote> datasource, int? pa
     var pageNumber = Math.Max(page ?? 1, 1);
     var count = Math.Clamp(itemsPerPage ?? 100, 1, 100);
     return await datasource.GetData((pageNumber - 1) * count, count);
-});
+}).RequireRateLimiting("Get_Limiter");
    
 
 api.MapPost("/spacenotes", [Authorize] async (AddSpaceNote request, IPlainSqlContext<SpaceNote> datasource) =>
@@ -138,6 +158,6 @@ api.MapPost("/login", (LoginCommand command) =>
     }
 
     return Results.Unauthorized();
-});
+}).RequireRateLimiting("Login_Limiter");
 
 app.Run();

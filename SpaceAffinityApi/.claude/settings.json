@@ -1,5 +1,11 @@
 {
   "enabledPlugins": {
     "dotnet@dotnet-agent-skills": true
+  },
+  "permissions": {
+    "ask": [
+      "Bash(git push *)",
+      "PowerShell(git push *)"
+    ]
   }
 }
