@@ -47,12 +47,12 @@ spec:
                   key: jwtpassword
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /healthz/ready
               port: 8080
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /healthz/live
               port: 8080
             initialDelaySeconds: 15
             periodSeconds: 20

@@ -43,11 +43,11 @@ docker run -d --name "$NAME-api" --network "$NAME" -p "$PORT:8080" \
   "$IMAGE" >/dev/null
 
 for _ in $(seq 1 30); do
-  curl -fs "$BASE/healthz" >/dev/null 2>&1 && break
+  curl -fs "$BASE/healthz/ready" >/dev/null 2>&1 && break
   sleep 1
 done
-curl -fs "$BASE/healthz" >/dev/null || fail "API never became healthy"
-echo "ok   GET  /healthz"
+curl -fs "$BASE/healthz/ready" >/dev/null || fail "API never became healthy"
+echo "ok   GET  /healthz/ready"
 
 login=$(curl -fs -X POST -H "Content-Type: application/json" \
   -d '{"username":"smokeusername","password":"smokepassword"}' \

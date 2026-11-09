@@ -50,7 +50,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddSingleton(SpaceNoteMap.Instance);
 builder.Services.AddScoped<IPlainSqlContext<SpaceNote>, PostgresPlainSqlContext<SpaceNote>>();
 
-builder.Services.AddHealthChecks().AddNpgSql();
+builder.Services.AddHealthChecks().AddNpgSql(tags: ["ready"]);
 
 var jwtKey = builder.Configuration["Authentication:JwtKey"]!;
 var issuer = builder.Configuration["Authentication:JwtIssuer"]!;

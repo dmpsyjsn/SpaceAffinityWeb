@@ -27,7 +27,7 @@ SpaceAffinityApi/            .NET API + Dockerfile
 space-affinity-ui/           React UI + Dockerfile + nginx.conf
 k8s/
   postgres.yaml              Headless Service + StatefulSet with a 5Gi volume
-  api.yaml                   Deployment (2 replicas, probes on /healthz) + Service
+  api.yaml                   Deployment (2 replicas, probes on /healthz/live and /healthz/ready) + Service
   ui.yaml                    Deployment (2 replicas) + Service
   ingress-local.yaml         Traefik Ingress: /api → API, / → UI
 .github/
@@ -39,7 +39,8 @@ k8s/
 
 | Method | Path | Notes |
 |--------|------|-------|
-| `GET` | `/healthz` | Used by the Kubernetes readiness and liveness probes |
+| `GET` | `/healthz/live` | Liveness probe: the process responds (no dependency checks) |
+| `GET` | `/healthz/ready` | Readiness probe: also checks the Postgres connection |
 | `GET` | `/api/spacenotes?page=1&itemsPerPage=100` | Paging values are clamped (`itemsPerPage` is 1 to 100) |
 | `POST` | `/api/spacenotes` | Body `{ "description": "...", "pictureUrl": "..." }` adds a note (201). Include `"id"` to edit that note instead (200, or 404 if it doesn't exist). Returns 400 if a field is missing |
 
