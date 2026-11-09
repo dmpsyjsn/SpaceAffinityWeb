@@ -50,7 +50,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddSingleton(SpaceNoteMap.Instance);
 builder.Services.AddScoped<IPlainSqlContext<SpaceNote>, PostgresPlainSqlContext<SpaceNote>>();
 
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks().AddNpgSql();
 
 var jwtKey = builder.Configuration["Authentication:JwtKey"]!;
 var issuer = builder.Configuration["Authentication:JwtIssuer"]!;
@@ -97,7 +97,8 @@ if (app.Environment.IsDevelopment())
 }
 
 // Kubernetes uses this to check the API is alive and ready for traffic
-app.MapHealthChecks("/healthz");
+app.MapHealthChecks("/healthz/live", new() { Predicate = _ => false });                  // no checks run
+app.MapHealthChecks("/healthz/ready", new() { Predicate = c => c.Tags.Contains("ready") });
 
 var api = app.MapGroup("/api");
 
